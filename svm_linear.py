@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 
 def main():
 
-	# load non-linearly separable txt file
-	f = open("nonlinsep.txt", 'r')
+	# load linearly separable txt file
+	f = open("linsep.txt", 'r')
 	result_matrix = []
 	labels = []
 
@@ -27,9 +27,8 @@ def main():
 
 	#(1) Solve with QP Q(yi x yj x K(xi, xj))
 	yi_yj = np.outer(labels,labels) #(100,100)
-	kernel_xi_xj = polynomial_kernel(data) #(100,100)
-
-	Q = cvxopt.matrix(yi_yj*kernel_xi_xj) #(100,100)
+	xi_xj = np.dot(data,data.T) #(100,100)
+	Q = cvxopt.matrix(yi_yj*xi_xj) #(100,100)
 	q = cvxopt.matrix(np.ones(100) * -1) #(100,)
 	A = cvxopt.matrix(labels,(1,100))
 	b = cvxopt.matrix(0.0)
@@ -46,7 +45,7 @@ def main():
 	sv_label = labels[sv] #labels corresponding to that alphas
 
 	#(2) Calculate b
-	b = np.sum(sv_label - ( sv_label * kernel_xi_xj[indices,sv] * alphas))
+	b = np.sum(sv_label - ( sv_label * xi_xj[indices,sv] * alphas))
 	b = b/len(alphas)
 	print "Intercept", b
 
@@ -55,12 +54,6 @@ def main():
 	for n in range(len(alphas)):
 		weights += alphas[n] * sv_label[n] * sv_data[n]
 	print "Coefficients", weights
-
-	print "Kernel function: Polynomial kernel = (1 + x.T * x`)^2"
-
-#(1 + x.T * x`)^2
-def polynomial_kernel(data):
-	return (1+np.dot(data,data.T)**2)
 
 if __name__ == "__main__":
 	main()
