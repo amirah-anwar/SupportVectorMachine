@@ -4,7 +4,8 @@
 # Reetinder Kaur reetindk@usc.edu
 
 import numpy as np
-import quadprog
+import cvxopt
+import cvxopt.solvers
 # ==============Support Vector Machine for Non-linearly Separable==================================
 
 def main():
@@ -21,38 +22,74 @@ def main():
 
 	X = np.array(result_matrix)
 	data = np.array(X[:,0:2]) #(100,2)
-	labels = np.array([X[:,2]]) #(1,100)
+	labels = np.array(X[:,2]) #(1,100)
 
 	print "data", data.shape
 	print "labels", labels.shape
 
 	#(1) Solve with QP Q(yi x yj x K(xi, xj))
-	yi_yj = labels * labels #(1,100)
+	yi_yj = labels * labels #(100,100)
 	print "yi_yj", yi_yj.shape
 	kernel_xi_xj = polynomial_kernel(data) #(100,100)
+	# kernel_xi_xj = np.zeros((100, 100))
+	# for i in range(100):
+	# 	for j in range(100):
+	# 		kernel_xi_xj[i,j] = polynomial_kernel(data[i], data[j])
 	print "kernel_xi_xj", kernel_xi_xj.shape
-	Q = yi_yj*kernel_xi_xj #(100,100)
+	Q = cvxopt.matrix(yi_yj*kernel_xi_xj) #(100,100)
 
-	print "Q", Q.shape
-	q = np.ones(100) #(100,)
-	print "q", q.shape
-	G = -np.ones((100,1)) #(100,1)
-	print "G", G.shape
+	# print "Q", Q.shape
+	q = cvxopt.matrix(np.ones(100) * -1) #(100,)
+	# print "q", q.shape
+	A = cvxopt.matrix(labels,(1,100))
+	b = cvxopt.matrix(0.0)
+	G = cvxopt.matrix(np.diag(np.ones(100) * -1))
+	h = cvxopt.matrix(np.zeros(100))
 
-	alpha = quadprog_solve_qp(Q,q,G.T,0.0,labels,0.0) #(100,)
-	print "alpha", alpha
+	# G = -np.ones((100,1)) #(100,1)
+	# print "Q", Q
 
-	#(2) w.T x + b
-	weights = alpha * labels * kernel_xi_xj #(100,100)
+	solution = cvxopt.solvers.qp(Q, q, G, h, A, b)
+	a = np.ravel(solution['x'])
+	print "a before", a
+	print "a", a.shape
+	sv = a > 1e-5
+	print "sv", sv
 
-	#(3) Calculate b
-	b = labels - (alpha * labels * kernel_xi_xj)
+	indices = np.arange(len(a))[sv]
+	print "len(a)", len(a)
+	print "indices", indices
+	alphas = a[sv]
+	sv_data = data[sv]
+	sv_label = labels[sv]
+	print "alphas after", alphas
+	print "sv_data", sv_data
+	print "sv_label", sv_label
+	print("%d support vectors out of %d points" % (len(alphas), 100))
+
+	print "kernel_xi_xj", kernel_xi_xj
+
+	# alpha = quadprog_solve_qp(Q,q,G.T,0.0,A,0.0) #(100,)
+	# print "alpha", alpha
+	print "kernel_xi_xj[indices,sv]", kernel_xi_xj[indices,sv]
+	# #(2) Calculate b
+	b = sv_label - ( sv_label * kernel_xi_xj[indices,sv] * alphas)
+	print "b shape", b
+
+	#(3) w.T x + b
+	weights = (sv_label * kernel_xi_xj[indices,sv]*alphas) + b #(100,100)
+	print "weights shape", weights
 
 	print "Kernel function: Polynomial kernel = (1 + x.T * x`)^2"
- 	print "Equation of line of separation:", equation(weights, data, b)
+	print "data[indices,sv]", data[indices]
+ 	print "Equation of line of separation:", equation(weights, data[indices], b)
 
 def equation(w, x, b):
-	return np.dot(w, x) + b
+	w = np.array([w]).T
+	print "w.shaoe",w.shape
+	print "w", w
+	print "x", x.shape
+	return (np.dot(x.T, w) + b)
 
 #(1 + x.T * x`)^2
 def polynomial_kernel(data):
